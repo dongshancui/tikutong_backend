@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- @author <a href="https://github.com/lidongshan">程序员鱼皮</a> -->
-<!-- @from <a href="https://dongshan.icu">编程导航知识星球</a> -->
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.com.dongshan.tikutong.mapper.PostThumbMapper">
+<mapper namespace="com.dongshan.tikutong.mapper.QuestionBankQuestionMapper">
 
-    <resultMap id="BaseResultMap" type="com.dongshan.tikutong.model.entity.PostThumb">
+    <resultMap id="BaseResultMap" type="com.dongshan.tikutong.model.entity.QuestionBankQuestion">
             <id property="id" column="id" jdbcType="BIGINT"/>
-            <result property="postId" column="postId" jdbcType="BIGINT"/>
+            <result property="questionBankId" column="questionBankId" jdbcType="BIGINT"/>
+            <result property="questionId" column="questionId" jdbcType="BIGINT"/>
             <result property="userId" column="userId" jdbcType="BIGINT"/>
+            <result property="editTime" column="editTime" jdbcType="TIMESTAMP"/>
             <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
             <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,postId,
-        userId,createTime,updateTime
+        id,questionBankId,questionId,
+        userId,editTime,createTime,
+        updateTime
     </sql>
 </mapper>

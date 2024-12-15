@@ -20,3 +20,4 @@ create table if not exists tikutong.`user`
     `isDelete` tinyint default 0 not null comment '是否删除',
     index idx_unionId(unionId)
     ) comment '用于存储用户信息，根据用户密码登录，逻辑删除';
+
