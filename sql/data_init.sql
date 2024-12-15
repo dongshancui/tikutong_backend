@@ -1,3 +1,4 @@
+create database tikutong;
 -- 初始数据
 use tikutong;
 

@@ -15,6 +15,7 @@ import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.entity.QuestionBank;
 import com.dongshan.tikutong.model.entity.User;
 import com.dongshan.tikutong.model.vo.QuestionBankVO;
+import com.dongshan.tikutong.model.vo.QuestionVO;
 import com.dongshan.tikutong.service.QuestionBankService;
 import com.dongshan.tikutong.service.QuestionService;
 import com.dongshan.tikutong.service.UserService;
@@ -145,6 +146,7 @@ public class QuestionBankController {
     public BaseResponse<QuestionBankVO> getQuestionBankVOById(QuestionBankQueryPageRequest pageRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(request == null,ErrorCode.PARAMS_ERROR);
         Long id = pageRequest.getId();
+        int pageSize = pageRequest.getPageSize();
         boolean needQueryQuestionList = pageRequest.isNeedQueryQuestionList();
 
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
@@ -158,9 +160,11 @@ public class QuestionBankController {
         if(needQueryQuestionList){
             QuestionQueryRequest questionQueryRequest = new QuestionQueryRequest();
             questionQueryRequest.setQuestionBankId(id);
+            questionQueryRequest.setPageSize(pageSize);
             Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
+            Page<QuestionVO> questionVOPage = questionService.getQuestionVOPage(questionPage, request);
             if(questionPage != null)
-                questionBankVO.setQuestionPage(questionPage);
+                questionBankVO.setQuestionPage(questionVOPage);
         }
         // 获取封装类
         return ResultUtils.success(questionBankVO);
@@ -196,7 +200,7 @@ public class QuestionBankController {
         long current = questionBankQueryRequest.getCurrent();
         long size = questionBankQueryRequest.getPageSize();
         // 限制爬虫
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         Page<QuestionBank> questionBankPage = questionBankService.page(new Page<>(current, size),
                 questionBankService.getQueryWrapper(questionBankQueryRequest));

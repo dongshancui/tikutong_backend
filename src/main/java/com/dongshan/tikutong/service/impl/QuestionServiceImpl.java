@@ -220,6 +220,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             if(CollUtil.isNotEmpty(list)){
                 List<Long> idList = list.stream().map(QuestionBankQuestion::getQuestionId).collect(Collectors.toList());
                 queryWrapper.in("id",idList);
+            }else {
+                return new Page<>(current,size,0);
             }
 
         }
