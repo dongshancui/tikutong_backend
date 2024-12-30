@@ -2,13 +2,20 @@ package com.dongshan.tikutong.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.dongshan.tikutong.common.ErrorCode;
 import com.dongshan.tikutong.constant.CommonConstant;
+import com.dongshan.tikutong.constant.RedisConstant;
 import com.dongshan.tikutong.constant.UserConstant;
 import com.dongshan.tikutong.exception.BusinessException;
 import com.dongshan.tikutong.mapper.UserMapper;
+import com.dongshan.tikutong.model.dto.post.PostEsDTO;
+import com.dongshan.tikutong.model.dto.post.PostQueryRequest;
+import com.dongshan.tikutong.model.dto.question.QuestionQueryRequest;
 import com.dongshan.tikutong.model.dto.user.UserQueryRequest;
+import com.dongshan.tikutong.model.entity.Post;
+import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.entity.User;
 import com.dongshan.tikutong.model.enums.UserRoleEnum;
 import com.dongshan.tikutong.model.vo.LoginUserVO;
@@ -18,13 +25,27 @@ import com.dongshan.tikutong.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
+import org.redisson.api.RBitSet;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
+import java.time.Year;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +58,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
+    @Resource
+    RedissonClient redissonClient;
     /**
      * 盐值，混淆密码
      */
@@ -269,4 +292,75 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 sortField);
         return queryWrapper;
     }
+
+
+    /**
+     * 给用户添加刷题签到信息
+     * @param userId 用户id
+     * @return 是否成功添加签到信息
+     */
+    @Override
+    public boolean addUserSignIn(long userId) {
+        LocalDate date = LocalDate.now();
+        String key = RedisConstant.getUserSignInRedisKey(date.getYear(),userId);
+        RBitSet bitSet = redissonClient.getBitSet(key);
+        // 获取当前日期在今年的偏移量，从1开始
+        int offset = date.getDayOfYear();
+        // 给对应偏移量设置签到记录
+        if(!bitSet.get(offset)){
+            bitSet.set(offset,true);
+        }
+        return true;
+    }
+
+    @Override
+    public List<Integer> getUserSignInRecord(long userId, Integer year) {
+        if(year == null){
+            year = LocalDate.now().getYear();
+        }
+        String key = RedisConstant.getUserSignInRedisKey(year,userId);
+        RBitSet bitSet = redissonClient.getBitSet(key);
+
+        // 构造返回结果
+        List<Integer> result = new ArrayList<>();
+        // 判断是否存在签到记录
+        if(bitSet == null){
+            return result;
+        }
+        // 为了提高redis交互速度，把redis中的bitset对象存到jvm中
+        BitSet signInRecord = bitSet.asBitSet();
+        // 获取当年的总天数
+        int totalDays = Year.of(year).length();
+        for(int dayOfYear = 1;dayOfYear <= totalDays; dayOfYear++){
+            // 如果某天用户签到，返回日期和对应的签到结果
+            if(signInRecord.get(dayOfYear)){
+                result.add(dayOfYear);
+            }
+        }
+        return result;
+    }
+
+    /** 优化思路：直接利用bitset的位运算优化逻辑，减少循环遍历的次数
+     * @Override
+     * public List<Integer> getUserSignInRecord(long userId, Integer year) {
+     *     if (year == null) {
+     *         LocalDate date = LocalDate.now();
+     *         year = date.getYear();
+     *     }
+     *     String key = RedisConstant.getUserSignInRedisKey(year, userId);
+     *     RBitSet signInBitSet = redissonClient.getBitSet(key);
+     *     // 加载 BitSet 到内存中，避免后续读取时发送多次请求
+     *     BitSet bitSet = signInBitSet.asBitSet();
+     *     // 统计签到的日期
+     *     List<Integer> dayList = new ArrayList<>();
+     *     // 从索引 0 开始查找下一个被设置为 1 的位
+     *     int index = bitSet.nextSetBit(0);
+     *     while (index >= 0) {
+     *         dayList.add(index);
+     *         // 查找下一个被设置为 1 的位
+     *         index = bitSet.nextSetBit(index + 1);
+     *     }
+     *     return dayList;
+     * }
+     */
 }

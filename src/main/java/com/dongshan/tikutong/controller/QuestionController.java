@@ -10,12 +10,15 @@ import com.dongshan.tikutong.common.ResultUtils;
 import com.dongshan.tikutong.constant.UserConstant;
 import com.dongshan.tikutong.exception.BusinessException;
 import com.dongshan.tikutong.exception.ThrowUtils;
+import com.dongshan.tikutong.model.dto.post.PostQueryRequest;
 import com.dongshan.tikutong.model.dto.question.QuestionAddRequest;
 import com.dongshan.tikutong.model.dto.question.QuestionEditRequest;
 import com.dongshan.tikutong.model.dto.question.QuestionQueryRequest;
 import com.dongshan.tikutong.model.dto.question.QuestionUpdateRequest;
+import com.dongshan.tikutong.model.entity.Post;
 import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.entity.User;
+import com.dongshan.tikutong.model.vo.PostVO;
 import com.dongshan.tikutong.model.vo.QuestionVO;
 import com.dongshan.tikutong.service.QuestionService;
 import com.dongshan.tikutong.service.UserService;
@@ -248,5 +251,22 @@ public class QuestionController {
         ThrowUtils.throwIf(questionQueryRequest == null,ErrorCode.PARAMS_ERROR);
         Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
         return ResultUtils.success(questionPage);
+    }
+
+    /**
+     * 分页搜索（从 ES 查询，封装类）
+     *
+     * @param questionQueryRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/search/page/vo")
+    public BaseResponse<Page<QuestionVO>> searchQuestionVOByPage(@RequestBody QuestionQueryRequest questionQueryRequest,
+                                                         HttpServletRequest request) {
+        long size = questionQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 2000, ErrorCode.PARAMS_ERROR);
+        Page<Question> questionPage = questionService.searchFromEs(questionQueryRequest);
+        return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
     }
 }

@@ -10,7 +10,10 @@ import com.dongshan.tikutong.common.ErrorCode;
 import com.dongshan.tikutong.constant.CommonConstant;
 import com.dongshan.tikutong.exception.ThrowUtils;
 import com.dongshan.tikutong.mapper.QuestionMapper;
+import com.dongshan.tikutong.model.dto.post.PostEsDTO;
+import com.dongshan.tikutong.model.dto.question.QuestionEsDTO;
 import com.dongshan.tikutong.model.dto.question.QuestionQueryRequest;
+import com.dongshan.tikutong.model.entity.Post;
 import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.entity.QuestionBankQuestion;
 import com.dongshan.tikutong.model.entity.User;
@@ -23,11 +26,23 @@ import com.dongshan.tikutong.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +65,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @Lazy
     private QuestionBankQuestionService questionBankQuestionService;
 
+
+    @Resource
+    private ElasticsearchRestTemplate elasticsearchRestTemplate;
     /**
      * 校验数据
      *questionBankQuestionServiceImpl
@@ -229,6 +247,88 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         // 查询数据库
         Page<Question> questionPage = this.page(new Page<>(current, size), queryWrapper);
         return questionPage;
+    }
+
+    @Override
+    public Page<Question> searchFromEs(QuestionQueryRequest questionQueryRequest) {
+        Long id = questionQueryRequest.getId();
+        Long notId = questionQueryRequest.getNotId();
+        String searchText = questionQueryRequest.getSearchText();
+        List<String> tags = questionQueryRequest.getTags();
+        Long questionBankId = questionQueryRequest.getQuestionBankId();
+        Long userId = questionQueryRequest.getUserId();
+        // es 起始页为 0
+        long current = questionQueryRequest.getCurrent() - 1;
+        long pageSize = questionQueryRequest.getPageSize();
+        String sortField = questionQueryRequest.getSortField();
+        String sortOrder = questionQueryRequest.getSortOrder();
+
+        // 构造查询条件
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+        // 过滤
+        boolQueryBuilder.filter(QueryBuilders.termQuery("isDelete", 0));
+        if (id != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("id", id));
+        }
+        if (notId != null) {
+            boolQueryBuilder.mustNot(QueryBuilders.termQuery("id", notId));
+        }
+        if (userId != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("userId", userId));
+        }
+        if (questionBankId != null) {
+            boolQueryBuilder.filter(QueryBuilders.termQuery("questionBankId", questionBankId));
+        }
+        // 必须包含所有标签
+        if (CollUtil.isNotEmpty(tags)) {
+            for (String tag : tags) {
+                boolQueryBuilder.filter(QueryBuilders.termQuery("tags", tag));
+            }
+        }
+        // 按照关键词搜索
+        if (StringUtils.isNotBlank(searchText)) {
+            boolQueryBuilder.should(QueryBuilders.matchQuery("title",searchText));
+            boolQueryBuilder.should(QueryBuilders.matchQuery("content",searchText));
+            boolQueryBuilder.should(QueryBuilders.matchQuery("answer",searchText));
+            boolQueryBuilder.minimumShouldMatch(1);
+        }
+
+        // 排序
+        SortBuilder<?> sortBuilder = SortBuilders.scoreSort();
+        if (StringUtils.isNotBlank(sortField)) {
+            sortBuilder = SortBuilders.fieldSort(sortField);
+            sortBuilder.order(CommonConstant.SORT_ORDER_ASC.equals(sortOrder) ? SortOrder.ASC : SortOrder.DESC);
+        }
+        // 分页
+        PageRequest pageRequest = PageRequest.of((int) current, (int) pageSize);
+        // 构造查询
+        NativeSearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(boolQueryBuilder)
+                .withPageable(pageRequest).withSorts(sortBuilder).build();
+        SearchHits<QuestionEsDTO> searchHits = elasticsearchRestTemplate.search(searchQuery, QuestionEsDTO.class);
+        Page<Question> page = new Page<>();
+        page.setTotal(searchHits.getTotalHits());
+        List<Question> resourceList = new ArrayList<>();
+        // 查出结果后，从 db 获取最新动态数据（比如点赞数）
+        if (searchHits.hasSearchHits()) {
+            List<SearchHit<QuestionEsDTO>> searchHitList = searchHits.getSearchHits();
+            List<Long> questionIdList = searchHitList.stream().map(searchHit -> searchHit.getContent().getId())
+                    .collect(Collectors.toList());
+            List<Question> questionList = baseMapper.selectBatchIds(questionIdList);
+            if (questionList != null) {
+                Map<Long, List<Question>> idQuestionMap = questionList.stream().collect(Collectors.groupingBy(Question::getId));
+                questionIdList.forEach(questionId -> {
+                    if (idQuestionMap.containsKey(questionId)) {
+                        resourceList.add(idQuestionMap.get(questionId).get(0));
+                    } else {
+                        // 从 es 清空 db 已物理删除的数据
+                        String delete = elasticsearchRestTemplate.delete(String.valueOf(questionId), PostEsDTO.class);
+                        log.info("delete post {}", delete);
+                    }
+                });
+            }
+        }
+        page.setRecords(resourceList);
+        return page;
     }
 
 }
