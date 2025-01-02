@@ -13,7 +13,6 @@ import com.dongshan.tikutong.mapper.QuestionMapper;
 import com.dongshan.tikutong.model.dto.post.PostEsDTO;
 import com.dongshan.tikutong.model.dto.question.QuestionEsDTO;
 import com.dongshan.tikutong.model.dto.question.QuestionQueryRequest;
-import com.dongshan.tikutong.model.entity.Post;
 import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.entity.QuestionBankQuestion;
 import com.dongshan.tikutong.model.entity.User;
@@ -39,6 +38,7 @@ import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQuery;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -329,6 +329,28 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         }
         page.setRecords(resourceList);
         return page;
+    }
+
+    /**
+     * 批量删除题目信息，同时清除题目题库关联
+     * @param questionIdList
+     */
+    @Override
+    @Transactional
+    public void batchDeleteQuestion(List<Long> questionIdList) {
+        // 参数校验
+        ThrowUtils.throwIf(questionIdList == null || questionIdList.isEmpty(),ErrorCode.PARAMS_ERROR,"题目列表不能为空");
+        // 执行删除操作
+        for (Long questionId : questionIdList) {
+            // 删除题目
+            boolean result = this.removeById(questionId);
+            ThrowUtils.throwIf(!result,ErrorCode.OPERATION_ERROR,"题目删除失败！");
+            // 删除题目题库关联关系
+            LambdaQueryWrapper<QuestionBankQuestion> wrapper = Wrappers.lambdaQuery(QuestionBankQuestion.class)
+                    .eq(QuestionBankQuestion::getQuestionId, questionId);
+            result = questionBankQuestionService.remove(wrapper);
+            ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR,"删除题目题库关联失败！");
+        }
     }
 
 }

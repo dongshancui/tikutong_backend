@@ -34,6 +34,13 @@
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>2.2.2</version>
+<!--            <exclusions>-->
+<!--                &lt;!&ndash;   排除默认的HikariCP连接池   &ndash;&gt;-->
+<!--                <exclusion>-->
+<!--                    <groupId>com.zaxxer</groupId>-->
+<!--                    <artifactId>HikariCP</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
         </dependency>
         <!-- https://mvnrepository.com/artifact/com.baomidou/mybatis-plus-boot-starter -->
         <dependency>
@@ -123,6 +130,20 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- druid:https://gitcode.com/gh_mirrors/druid/druid/overview?utm_source=csdn_github_accelerator&isLogin=1    -->
+<!--        <dependency>-->
+<!--            <groupId>com.alibaba</groupId>-->
+<!--            <artifactId>druid-spring-boot-starter</artifactId>-->
+<!--            <version>1.2.23</version>-->
+<!--        </dependency>-->
+        <dependency>
+            <artifactId>hotkey-client</artifactId>
+            <groupId>com.jd.platform.hotkey</groupId>
+            <version>0.0.4-SNAPSHOT</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/hotkey-client-0.0.4-SNAPSHOT.jar</systemPath>
+        </dependency>
+
     </dependencies>
 
     <build>

@@ -3,13 +3,12 @@ package com.dongshan.tikutong.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.dongshan.tikutong.model.dto.post.PostQueryRequest;
 import com.dongshan.tikutong.model.dto.question.QuestionQueryRequest;
-import com.dongshan.tikutong.model.entity.Post;
 import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.vo.QuestionVO;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 题目服务
@@ -68,5 +67,12 @@ public interface QuestionService extends IService<Question> {
      * @return
      */
     Page<Question> searchFromEs(QuestionQueryRequest QuestionQueryRequest);
+
+
+    /**
+     * 批量删除题目信息，同时清除题目题库关联
+     * @param questionIdList
+     */
+    void batchDeleteQuestion(List<Long> questionIdList);
 
 }

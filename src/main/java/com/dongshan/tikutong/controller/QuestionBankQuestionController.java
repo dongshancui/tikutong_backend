@@ -11,10 +11,7 @@ import com.dongshan.tikutong.common.ResultUtils;
 import com.dongshan.tikutong.constant.UserConstant;
 import com.dongshan.tikutong.exception.BusinessException;
 import com.dongshan.tikutong.exception.ThrowUtils;
-import com.dongshan.tikutong.model.dto.questionBankQuestion.QuestionBankQuestionAddRequest;
-import com.dongshan.tikutong.model.dto.questionBankQuestion.QuestionBankQuestionQueryRequest;
-import com.dongshan.tikutong.model.dto.questionBankQuestion.QuestionBankQuestionRemoveRequest;
-import com.dongshan.tikutong.model.dto.questionBankQuestion.QuestionBankQuestionUpdateRequest;
+import com.dongshan.tikutong.model.dto.questionBankQuestion.*;
 import com.dongshan.tikutong.model.entity.QuestionBankQuestion;
 import com.dongshan.tikutong.model.entity.User;
 import com.dongshan.tikutong.model.vo.QuestionBankQuestionVO;
@@ -26,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 题库题目关联表接口
@@ -228,4 +226,45 @@ public class QuestionBankQuestionController {
         return ResultUtils.success(result);
     }
     // endregion
+
+    /**
+     * 批量添加题目到题库
+     * @param batchAddRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/batch/add")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> batchAddQuestionToBank(@RequestBody QuestionBankQuestionBatchAddRequest batchAddRequest, HttpServletRequest request) {
+        // 校验参数
+        ThrowUtils.throwIf(batchAddRequest == null,ErrorCode.PARAMS_ERROR,"请求参数不能为空");
+        // 获取参数
+        Long questionBankId = batchAddRequest.getQuestionBankId();
+        List<Long> questionIdList = batchAddRequest.getQuestionIdList();
+        User loginUser = userService.getLoginUser(request);
+        questionBankQuestionService.batchAddQuestionToBank(questionIdList,questionBankId,loginUser);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 批量从题库删除题目
+     * @param removeRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/batch/remove")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> batchRemoveQuestionFromBank(@RequestBody QuestionBankQuestionBatchRemoveRequest removeRequest, HttpServletRequest request) {
+        // 校验参数
+        ThrowUtils.throwIf(removeRequest == null,ErrorCode.PARAMS_ERROR,"请求参数不能为空");
+        // 获取参数
+        Long questionBankId = removeRequest.getQuestionBankId();
+        List<Long> questionIdList = removeRequest.getQuestionIdList();
+        User loginUser = userService.getLoginUser(request);
+        questionBankQuestionService.batchRemoveQuestionFromBank(questionIdList,questionBankId,loginUser);
+        return ResultUtils.success(true);
+    }
+
+
+
 }

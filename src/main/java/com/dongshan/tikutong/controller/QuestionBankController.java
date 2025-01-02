@@ -6,6 +6,7 @@ import com.dongshan.tikutong.common.BaseResponse;
 import com.dongshan.tikutong.common.DeleteRequest;
 import com.dongshan.tikutong.common.ErrorCode;
 import com.dongshan.tikutong.common.ResultUtils;
+import com.dongshan.tikutong.constant.HotkeyConstant;
 import com.dongshan.tikutong.constant.UserConstant;
 import com.dongshan.tikutong.exception.BusinessException;
 import com.dongshan.tikutong.exception.ThrowUtils;
@@ -19,6 +20,7 @@ import com.dongshan.tikutong.model.vo.QuestionVO;
 import com.dongshan.tikutong.service.QuestionBankService;
 import com.dongshan.tikutong.service.QuestionService;
 import com.dongshan.tikutong.service.UserService;
+import com.jd.platform.hotkey.client.callback.JdHotKeyStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
@@ -149,6 +151,16 @@ public class QuestionBankController {
         int pageSize = pageRequest.getPageSize();
         boolean needQueryQuestionList = pageRequest.isNeedQueryQuestionList();
 
+        // 判断是否为hotkey，如果是，从缓存中取值
+        String hotkey = HotkeyConstant.getQuestionBankPageKey(id);
+        if(JdHotKeyStore.isHotKey(hotkey)){
+            Object cachedQuestionBankPage = JdHotKeyStore.get(hotkey);
+            // 如果缓存对象不为空，取出来，否则，读取数据库获取数据
+            if(cachedQuestionBankPage != null){
+                return ResultUtils.success((QuestionBankVO)cachedQuestionBankPage);
+            }
+        }
+
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         // 查询数据库
         QuestionBank questionBank = questionBankService.getById(id);
@@ -166,6 +178,10 @@ public class QuestionBankController {
             if(questionPage != null)
                 questionBankVO.setQuestionPage(questionVOPage);
         }
+
+        // 设置本地缓存
+        JdHotKeyStore.smartSet(hotkey,questionBankVO);
+
         // 获取封装类
         return ResultUtils.success(questionBankVO);
     }

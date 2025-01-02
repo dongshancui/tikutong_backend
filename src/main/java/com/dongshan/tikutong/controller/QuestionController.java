@@ -11,10 +11,7 @@ import com.dongshan.tikutong.constant.UserConstant;
 import com.dongshan.tikutong.exception.BusinessException;
 import com.dongshan.tikutong.exception.ThrowUtils;
 import com.dongshan.tikutong.model.dto.post.PostQueryRequest;
-import com.dongshan.tikutong.model.dto.question.QuestionAddRequest;
-import com.dongshan.tikutong.model.dto.question.QuestionEditRequest;
-import com.dongshan.tikutong.model.dto.question.QuestionQueryRequest;
-import com.dongshan.tikutong.model.dto.question.QuestionUpdateRequest;
+import com.dongshan.tikutong.model.dto.question.*;
 import com.dongshan.tikutong.model.entity.Post;
 import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.entity.User;
@@ -268,5 +265,21 @@ public class QuestionController {
         ThrowUtils.throwIf(size > 2000, ErrorCode.PARAMS_ERROR);
         Page<Question> questionPage = questionService.searchFromEs(questionQueryRequest);
         return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+    }
+
+    /**
+     * 批量删除题目信息，同时清除对应的题目题库关联
+     *
+     * @param questionBatchDeleteRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/batch/delete")
+    public BaseResponse<Boolean> batchDeleteQuestion(@RequestBody QuestionBatchDeleteRequest questionBatchDeleteRequest,
+                                                                 HttpServletRequest request) {
+        // 参数校验
+        ThrowUtils.throwIf(questionBatchDeleteRequest == null, ErrorCode.PARAMS_ERROR,"请求参数不能为空");
+        questionService.batchDeleteQuestion(questionBatchDeleteRequest.getQuestionIdList());
+        return ResultUtils.success(true);
     }
 }
