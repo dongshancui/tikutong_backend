@@ -1,5 +1,8 @@
 package com.dongshan.tikutong.controller;
 
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.dongshan.tikutong.annotation.AuthCheck;
 import com.dongshan.tikutong.common.BaseResponse;
@@ -211,6 +214,9 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/list/page/vo")
+    @SentinelResource(value = "listQuestionBankVOByPage",
+            blockHandler = "handleBlockException",
+            fallback = "handleFallback")
     public BaseResponse<Page<QuestionBankVO>> listQuestionBankVOByPage(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
                                                                HttpServletRequest request) {
         long current = questionBankQueryRequest.getCurrent();
@@ -223,6 +229,37 @@ public class QuestionBankController {
         // 获取封装类
         return ResultUtils.success(questionBankService.getQuestionBankVOPage(questionBankPage, request));
     }
+
+    /**
+     * sentinel 对 listQuestionBankVOByPage 出现降级异常 or 熔断降级异常之后的处理逻辑（因为sentinel统一将限流降级异常和熔断降级异常都认为是 BlockException 的子类）
+     * @param questionBankQueryRequest
+     * @param request
+     * @param ex
+     * @return
+     */
+    public BaseResponse<Page<QuestionBankVO>> handleBlockException(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
+                                                                       HttpServletRequest request, BlockException ex) {
+        // 如果异常是降级异常
+        if(ex instanceof DegradeException){
+            handleFallback(questionBankQueryRequest,request,ex);
+        }
+        // 限流操作
+        return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"系统压力过大，请耐心等待");
+    }
+
+
+    /**
+     * sentinel 对 listQuestionBankVOByPage 的业务异常，提供降级操作，返回空数据
+     * @param questionBankQueryRequest
+     * @param request
+     * @param ex
+     * @return
+     */
+    public BaseResponse<Page<QuestionBankVO>> handleFallback(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
+                                                                       HttpServletRequest request, BlockException ex) {
+        return ResultUtils.success(null);
+    }
+
 
     /**
      * 分页获取当前登录用户创建的题库列表

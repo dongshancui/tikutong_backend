@@ -1,6 +1,13 @@
 package com.dongshan.tikutong.controller;
 
 import cn.hutool.json.JSONUtil;
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.Tracer;
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.dongshan.tikutong.annotation.AuthCheck;
 import com.dongshan.tikutong.common.BaseResponse;
@@ -12,10 +19,12 @@ import com.dongshan.tikutong.exception.BusinessException;
 import com.dongshan.tikutong.exception.ThrowUtils;
 import com.dongshan.tikutong.model.dto.post.PostQueryRequest;
 import com.dongshan.tikutong.model.dto.question.*;
+import com.dongshan.tikutong.model.dto.questionBank.QuestionBankQueryRequest;
 import com.dongshan.tikutong.model.entity.Post;
 import com.dongshan.tikutong.model.entity.Question;
 import com.dongshan.tikutong.model.entity.User;
 import com.dongshan.tikutong.model.vo.PostVO;
+import com.dongshan.tikutong.model.vo.QuestionBankVO;
 import com.dongshan.tikutong.model.vo.QuestionVO;
 import com.dongshan.tikutong.service.QuestionService;
 import com.dongshan.tikutong.service.UserService;
@@ -170,6 +179,63 @@ public class QuestionController {
                 questionService.getQueryWrapper(questionQueryRequest));
         // 获取封装类
         return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+    }
+
+    /**
+     * 分页获取题目列表（封装类 - 限流版）
+     * @param questionQueryRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/list/page/vo/sentinel")
+    public BaseResponse<Page<QuestionVO>> listQuestionVOByPageSentinel(@RequestBody QuestionQueryRequest questionQueryRequest,
+                                                               HttpServletRequest request) {
+        long current = questionQueryRequest.getCurrent();
+        long size = questionQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 进行限流操作
+        String remoteAddr = request.getRemoteAddr();
+        Entry entry = null;
+        try{
+            entry = SphU.entry("listQuestionVOByPage", EntryType.IN,1,remoteAddr);
+            // 查询数据库
+            Page<Question> questionPage = questionService.page(new Page<>(current, size),
+                    questionService.getQueryWrapper(questionQueryRequest));
+            // 获取封装类
+            return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+        }catch (Throwable ex){
+            // 如果是业务异常，进行上报
+            if(!BlockException.isBlockException(ex)){
+                Tracer.trace(ex);
+                return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"系统错误");
+            }
+            // 如果是降级异常， 进行降级操作
+            if(ex instanceof DegradeException){
+                return this.handleFallback(questionQueryRequest,request);
+            }
+            // 进行限流操作
+            return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"系统压力过大，请耐心等待！");
+        }finally{
+            if(entry != null){
+                entry.exit(1,remoteAddr);
+            }
+        }
+
+
+
+    }
+
+    /**
+     * 分页获取题目列表(限流 - 降级操作)
+     * @param questionQueryRequest
+     * @param request
+     * @param ex
+     * @return
+     */
+    public BaseResponse<Page<QuestionVO>> handleFallback(@RequestBody QuestionQueryRequest questionQueryRequest,
+                                                             HttpServletRequest request) {
+        return ResultUtils.success(null);
     }
 
     /**
